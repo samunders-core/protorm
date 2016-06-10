@@ -9,8 +9,8 @@ import java.lang.annotation.Target;
 
 /** for marking either:<br><ul>
  * <li>primitive/byte array properties</li>
- * <li>void/non-void methods accepting single argument of either: primitive or primitive wrapper or byte array or {@link InputStream} or {@link OutputStream}</li></ul>
- * non-void result is ignored unless it's {@link Layer} or its type matches type of primitive wrapper argument (null argument then signals encoding) */
+ * <li>void/primitive/byte array/{@link Layer}-returning methods accepting single argument of either: primitive or primitive wrapper or byte array or {@link InputStream} or {@link OutputStream}</li></ul>
+ * decoding ignores result unless it's {@link Layer}, encoding mandates primitive (non-void) or byte array return with null given as the only argument */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD, ElementType.METHOD})
 public @interface Field {
