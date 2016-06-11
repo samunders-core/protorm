@@ -259,7 +259,7 @@ public enum Types {
 				if (method.getParameterTypes().length == 1 && !method.getParameterTypes()[0].isPrimitive() && 
 						((method.getReturnType().isPrimitive() && !void.class.equals(method.getReturnType())) || byte[].class.equals(method.getReturnType()) || FieldAccess.class.isAssignableFrom(method.getReturnType()))) {
 					if (byte[].class.isAssignableFrom(method.getParameterTypes()[0]) && field.byteCount() <= 0) {
-						throw new IllegalStateException("byte array fields with unknown length not supported, specify size for " + method);
+						error = new Error("Byte array fields with unknown length not supported, specify size for " + method, error);
 					}
 					method.setAccessible(true);
 					result.put(method, method.getParameterTypes()[0]);

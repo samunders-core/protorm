@@ -35,8 +35,9 @@ public class FieldComparatorTest {
 			Types.ofFields(With2ViolatingMethods.class);	// when
 			Assert.fail("Violations not checked");
 		} catch (Error e) {			// then message of both e and its cause contain respective method names
-			Assert.assertTrue(e.getMessage(), e.getMessage().contains("public java.lang.Integer " + With2ViolatingMethods.class.getName() + ".second"));
-			Assert.assertTrue(e.getCause().getMessage(), e.getCause().getMessage().contains("public void " + With2ViolatingMethods.class.getName() + ".first"));
+			String combined = e.getMessage() + "\n" + e.getCause().getMessage();	// because no field order is guaranteed
+			Assert.assertTrue(combined, combined.contains("public java.lang.Integer " + With2ViolatingMethods.class.getName() + ".second"));
+			Assert.assertTrue(combined, combined.contains("public void " + With2ViolatingMethods.class.getName() + ".first"));
 		}
 	}
 	
