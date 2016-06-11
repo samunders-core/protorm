@@ -13,11 +13,11 @@ import org.junit.Test;
 public class FieldComparatorTest {
 	@Test(expected=NullPointerException.class)
 	public void rejectsNull() {
-		FieldComparator.INSTANCE.fieldTypes(null);
+		Types.ofFields(null);
 	}
 	
 	// given class with 2 violating methods
-	private static class With2ViolatingMethods implements Layer<InputStream> {
+	private static class With2ViolatingMethods implements LayerDecoder<InputStream> {
 		@Field(1)
 		public void first() {
 			
@@ -32,16 +32,16 @@ public class FieldComparatorTest {
 	@Test
 	public void rejectsAllConstraintViolatingMethodsAtOnce() {
 		try {
-			FieldComparator.INSTANCE.fieldTypes(With2ViolatingMethods.class);	// when
+			Types.ofFields(With2ViolatingMethods.class);	// when
 			Assert.fail("Violations not checked");
 		} catch (Error e) {			// then message of both e and its cause contain respective method names
-			Assert.assertTrue(e.getMessage().contains("Integer second"));
-			Assert.assertTrue(e.getCause().getMessage().contains("void first"));
+			Assert.assertTrue(e.getMessage(), e.getMessage().contains("public java.lang.Integer " + With2ViolatingMethods.class.getName() + ".second"));
+			Assert.assertTrue(e.getCause().getMessage(), e.getCause().getMessage().contains("public void " + With2ViolatingMethods.class.getName() + ".first"));
 		}
 	}
 	
 	// given class defining fields and methods with non-ascending annotation values
-	private static class WithReversedAnnotationValues implements Layer<InputStream> {
+	private static class WithReversedAnnotationValues implements LayerDecoder<InputStream> {
 		@Field(4) private int f4;
 		@Field(3) private int f3;
 		@Field(1) private int f1;
@@ -53,9 +53,9 @@ public class FieldComparatorTest {
 	
 	@Test
 	public void returnsBothFieldsAndMethodsOrderedByValue() {
-		SortedMap<AccessibleObject, Class<?>> types = FieldComparator.INSTANCE.fieldTypes(WithReversedAnnotationValues.class);	// when
+		SortedMap<AccessibleObject, Class<?>> types = Types.ofFields(WithReversedAnnotationValues.class);	// when
 		// then result is not null and keys are in ascending order by Field.value
 		Assert.assertNotNull(types);
-		Assert.assertTrue(types.keySet().stream().map(java.lang.reflect.Field.class::cast).collect(Collectors.toList()).equals(Arrays.asList("f1", "f2", "f3", "f4")));  
+		Assert.assertTrue(types.toString(), types.keySet().stream().map(java.lang.reflect.Member.class::cast).map(java.lang.reflect.Member::getName).collect(Collectors.toList()).equals(Arrays.asList("f1", "f2", "f3", "f4")));  
 	}
 }
