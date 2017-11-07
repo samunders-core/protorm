@@ -18,7 +18,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-// T extends annotation guarantees empty args to invocation handlers, abstract makes getClass().getTypeParameters() inference work
+// T extends annotation guarantees empty args to invocation handlers, abstract makes getClass().getGenericSuperclass().getActualTypeArguments() inference work
 public abstract class Codec<RO_View extends Annotation, RW_Model extends Annotation/* RO_View */ & Encoder<RO_View, RW_Model>> {
 	private final Map<Object, FieldCodec<? super RO_View>> fieldCodecs = new LinkedHashMap<>();
 	
@@ -27,12 +27,12 @@ public abstract class Codec<RO_View extends Annotation, RW_Model extends Annotat
 
 	@SuppressWarnings("unchecked")
 	protected Class<RO_View> RO_View() {	// returns correct result thanks to Codec<View, Model> being abstract
-		return (Class<RO_View>) ((ParameterizedType) getClass().getTypeParameters()[0]).getRawType();
+		return (Class<RO_View>) ((ParameterizedType) getClass().getGenericSuperclass()).getActualTypeArguments()[0];
 	}
 	
 	@SuppressWarnings("unchecked")
 	protected Class<RW_Model> RW_Model() {	// returns correct result thanks to Codec<View, Model> being abstract
-		return (Class<RW_Model>) ((ParameterizedType) getClass().getTypeParameters()[1]).getRawType();
+		return (Class<RW_Model>) ((ParameterizedType) getClass().getGenericSuperclass()).getActualTypeArguments()[1];
 	}
 	
 	protected <C extends FieldCodec<? super RO_View>> void skip(C codec) {
@@ -296,6 +296,10 @@ public abstract class Codec<RO_View extends Annotation, RW_Model extends Annotat
 	}
 	
 	private class EncoderImpl extends AbstractEncoder<RO_View, RW_Model> {
+		protected EncoderImpl() {
+			super(RW_Model());
+		}
+
 		@Override
 		public byte[] buffer(int minSize) {
 			return new byte[minSize];

@@ -7,8 +7,8 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Proxy;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -19,15 +19,14 @@ abstract class AbstractEncoder<RO_View extends Annotation, RW_Model extends Anno
 	private Method toSet = null;
 	public final RW_Model proxy;
 	
-	@SuppressWarnings("unchecked")
-	public AbstractEncoder() {
+	public AbstractEncoder(Class<RW_Model> clazz) {
 		super(new InputStream() {
 			@Override
 			public int read() throws IOException {
 				return 0;
 			}
 		});
-		proxy = CodecUtils.proxy(this, (Class<RW_Model>) ((ParameterizedType) getClass().getTypeParameters()[1]).getRawType());
+		proxy = CodecUtils.proxy(this, clazz);
 	}
 	
 	protected Object defaultValue(Method m) throws Throwable {
@@ -47,7 +46,52 @@ abstract class AbstractEncoder<RO_View extends Annotation, RW_Model extends Anno
 	
 	@Override
 	public String toString() {
-		return values.toString();	// TODO:
+		StringBuilder result = new StringBuilder("{");
+		String separator = "";
+		for (Map.Entry<Method, Object> entry : values.entrySet()) {
+			append(result.append(separator), entry.getKey(), entry.getValue());
+			separator = ", ";
+		}
+		return result.append('}').toString();
+	}
+	
+	private StringBuilder append(StringBuilder result, Method key, Object value) {
+		Class<?> type = null;
+		if (key != null) {
+			type = key.getReturnType();
+			append(result, null, key.getName()).append(": ");
+		}
+		if (value == null) {
+			return result.append("null");
+		} else if (type == null) {
+			type = value.getClass();
+		}		// Annotation: Return types are restricted to boolean, char, byte, short, int, long, float, double, String, Class, enums, annotations, and arrays of the preceding types
+		if (type.isAnnotation()) {
+			AbstractEncoder<?, ?> e = (AbstractEncoder<?, ?>) Proxy.getInvocationHandler(value);
+			result.append('{');
+			String separator = "";
+			for (Map.Entry<Method, Object> entry : e.values.entrySet()) {
+				append(result.append(separator), entry.getKey(), entry.getValue());
+				separator = ", ";
+			}
+			return result.append('}');
+		} else if ((type.isPrimitive() && !char.class.equals(type)) || Number.class.isAssignableFrom(type) || Boolean.class.isAssignableFrom(type)) {
+			return result.append(value);
+		} else if (type.isArray()) {
+			if (byte.class.equals(type.getComponentType())) {
+				return append(result, null, new String((byte[]) value, Charset.forName("UTF-8")));
+			} else if (char.class.equals(type.getComponentType())) {
+				return append(result, null, new String((char[]) value));
+			}
+			result.append('[');
+			String separator = "";
+			for (Object element : (Object[]) value) {
+				append(result.append(separator), null, element);
+				separator = ", ";
+			}
+			return result.append(']');
+		}	// else String, Character, Class, Enum, unknown
+		return result.append('"').append(value).append('"');
 	}
 
 	@Override

@@ -14,6 +14,7 @@ import java.nio.charset.Charset;
 import java.util.Arrays;
 
 import org.protorm.BufferProvider;
+import org.protorm.CodecUtils;
 import org.protorm.FieldCodec;
 
 @Retention(RetentionPolicy.RUNTIME)
@@ -30,20 +31,18 @@ public @interface Text {
 		@Override
 		public Object readAndTransform(BufferProvider bufferProvider, DataInputStream input, Annotation readSoFar, Method methodOfT) throws IOException, IllegalStateException {
 			Text line = methodOfT.getAnnotation(Text.class);
-			if (line == null) {
-				line = getClass().getAnnotation(Text.class);
-			} else if (line.maxLength() <= 0) {
+			for (Class<?> clazz = methodOfT.getDeclaringClass(); line == null; clazz = getClass()) {
+				line = clazz.getAnnotation(Text.class);
+			}
+			if (line.maxLength() <= 0) {
 				throw new IllegalStateException("Max line length required above zero: " + methodOfT);
 			}
-			int minSize = Math.min(4096, line.maxLength()), off = 0;
-			byte[] buffer = bufferProvider.buffer(minSize);
-			buffer[0] = line.terminatedBy().length > 0 ? (byte) (1 + line.terminatedBy()[0]) : 0;
+			int off = -1;
+			byte[] buffer = bufferProvider.buffer(Math.min(4096, line.maxLength()));
 			try {
-				for (; minSize <= line.maxLength() && !endsWith(buffer, off, line.terminatedBy()); minSize *= 2) {
-					buffer = bufferProvider.buffer(minSize);
-					for (; off < minSize && !endsWith(buffer, off, line.terminatedBy()); ++off) {
-						input.readFully(buffer, off, 1);
-					}
+				off = read(input, ++off, line.terminatedBy(), buffer);
+				while (buffer.length < line.maxLength() && !endsWith(buffer, off, line.terminatedBy())) {
+					off = read(input, ++off, line.terminatedBy(), buffer = bufferProvider.buffer(buffer.length * 2));
 				}
 			} catch (EOFException e) {
 				if (off == 0) {
@@ -53,17 +52,55 @@ public @interface Text {
 			if (endsWith(buffer, off, line.terminatedBy())) {
 				off -= line.terminatedBy().length;
 			}
+			++off;
 			if (methodOfT.getReturnType().isArray() && byte.class.equals(methodOfT.getReturnType().getComponentType())) {
 				return Arrays.copyOf(buffer, off);
 			}
-			return new String(buffer, 0, off, Charset.forName(line.charset()));
+			String result = new String(buffer, 0, off, Charset.forName(line.charset()));
+			return methodOfT.getReturnType().isInstance(result) ? result : transform(methodOfT.getReturnType(), line, result);
 		}
 		
-		private boolean endsWith(byte[] buffer, int count, byte[] terminator) {
-			if (terminator.length == 0 || count < terminator.length) {
+		@SuppressWarnings("unchecked")
+		private static <T extends Enum<T>> Object transform(Class<?> type, Text line, String value) {
+			if (type.isPrimitive()) {
+				try {
+					return CodecUtils.toPrimitive(type, Long.decode(value));
+				} catch (NumberFormatException floatingPointThen) {
+					try {
+						return CodecUtils.toPrimitive(type, Double.valueOf(value));
+					} catch (NumberFormatException boolOrChar) {
+						return type.isInstance(value.charAt(0)) ? value.charAt(0) : !Boolean.FALSE.equals(Boolean.valueOf(value));
+					}
+				}
+			} else if (type.isEnum()) {
+				return Enum.valueOf((Class<T>) type, value);
+			} else if (Class.class.isAssignableFrom(type)) {
+				try {
+					return Class.forName(value, false, Thread.currentThread().getContextClassLoader());
+				} catch (ClassNotFoundException e) {}
+			} else if (type.isArray()) {
+				if (byte.class.equals(type.getComponentType())) {
+					return value.getBytes(Charset.forName(line.charset()));
+				} else if (char.class.equals(type.getComponentType())) {
+					return value.toCharArray();
+				}
+			}
+			throw new RuntimeException("Don't know how to make " + type + " from " + value);
+		}
+		
+		private static int read(DataInputStream input, int off, byte[] terminator, byte[] buffer) throws IOException {
+			--off;
+			do {
+				input.readFully(buffer, ++off, 1);
+			} while (off < buffer.length - 1 && !endsWith(buffer, off, terminator));
+			return off;
+		}
+		
+		private static boolean endsWith(byte[] buffer, int off, byte[] terminator) {
+			if (terminator.length == 0 || off < terminator.length - 1) {
 				return false;
 			}
-			for (int b = count - 1, t = terminator.length - 1; b + t >= 0; --b, --t) {
+			for (int b = off, t = terminator.length - 1; b >= 0 && t >= 0; --b, --t) {
 				if (buffer[b] != terminator[t]) {
 					return false;
 				}
