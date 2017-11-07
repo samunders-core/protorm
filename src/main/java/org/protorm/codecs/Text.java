@@ -18,20 +18,20 @@ import org.protorm.FieldCodec;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.METHOD, ElementType.TYPE})
-public @interface Line {
+public @interface Text {
 	byte[] terminatedBy() default '\n';
 	String charset() default "UTF-8";
 	int maxLength() default 1024*1024;
 	
-	@Line
-	enum Text implements FieldCodec<Annotation> {
+	@Text
+	enum Line implements FieldCodec<Annotation> {
 		INSTANCE;
 
 		@Override
 		public Object readAndTransform(BufferProvider bufferProvider, DataInputStream input, Annotation readSoFar, Method methodOfT) throws IOException, IllegalStateException {
-			Line line = methodOfT.getAnnotation(Line.class);
+			Text line = methodOfT.getAnnotation(Text.class);
 			if (line == null) {
-				line = getClass().getAnnotation(Line.class);
+				line = getClass().getAnnotation(Text.class);
 			} else if (line.maxLength() <= 0) {
 				throw new IllegalStateException("Max line length required above zero: " + methodOfT);
 			}
